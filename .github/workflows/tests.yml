@@ -18,63 +18,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        working-directory: Tests/qa-ui-tests-saucedemo
+        working-directory: tests/qa-ui-tests-saucedemo
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install allure-pytest allure-commandline
 
       - name: Run Pytest with Allure
-        working-directory: Tests/qa-ui-tests-saucedemo
+        working-directory: tests/qa-ui-tests-saucedemo
         run: |
           pytest --alluredir=allure-results --maxfail=1 --disable-warnings -q
 
       - name: Generate Allure Report
         if: always()
-        working-directory: Tests/qa-ui-tests-saucedemo
+        working-directory: tests/qa-ui-tests-saucedemo
         run: |
-          allure generate allure-results -o allure-report --clean
-
-      - name: Upload Allure Report as Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-report
-          path: Tests/qa-ui-tests-saucedemo/allure-report
-
-      - name: Upload Test Logs and Screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-artifacts
-          path: |
-            Tests/qa-ui-tests-saucedemo/logs
-            Tests/qa-ui-tests-saucedemo/screenshots
-
-  deploy:
-    if: always()
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Allure Report Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: allure-report
-          path: ./allure-report
-
-      - name: Deploy Allure Report to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./allure-report
+          allure generate allure-results -o allur
