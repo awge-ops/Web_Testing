@@ -2,23 +2,30 @@ name: QA UI Tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         python-version: [3.11]
-
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Debug repo layout
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          pwd
+          ls -la
+          ls -la tests || true
+          ls -la tests/qa-ui-tests-saucedemo || true
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -26,19 +33,30 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        working-directory: tests/qa-ui-tests-saucedemo
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          REQ="tests/qa-ui-tests-saucedemo/requirements.txt"
+          if [ -f "$REQ" ]; then
+            pip install -r "$REQ"
+          else
+            echo "ERROR: $REQ not found"
+            exit 1
+          fi
           pip install allure-pytest allure-commandline
 
       - name: Run Pytest with Allure
-        working-directory: tests/qa-ui-tests-saucedemo
         run: |
-          pytest --alluredir=allure-results --maxfail=1 --disable-warnings -q
+          pytest tests/qa-ui-tests-saucedemo --alluredir=tests/qa-ui-tests-saucedemo/allure-results --maxfail=1 --disable-warnings -q
 
       - name: Generate Allure Report
         if: always()
-        working-directory: tests/qa-ui-tests-saucedemo
         run: |
-          allure generate allure-results -o allur
+          mkdir -p tests/qa-ui-tests-saucedemo/allure-report
+          allure generate tests/qa-ui-tests-saucedemo/allure-results -o tests/qa-ui-tests-saucedemo/allure-report --clean || echo "Allure generate failed"
+
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: tests/qa-ui-tests-saucedemo/allure-report
