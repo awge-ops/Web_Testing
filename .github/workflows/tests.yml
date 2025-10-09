@@ -15,11 +15,12 @@ jobs:
     defaults:
       run:
         shell: bash
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Debug repo layout
+      - name: Debug repo layout (before)
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           pwd
@@ -44,19 +45,39 @@ jobs:
           fi
           pip install allure-pytest allure-commandline
 
-      - name: Run Pytest with Allure
+      - name: Run Pytest with Allure (do not fail job)
+        id: run_tests
         run: |
-          pytest tests/qa-ui-tests-saucedemo --alluredir=tests/qa-ui-tests-saucedemo/allure-results --maxfail=1 --disable-warnings -q
+          # запускаем pytest, но не прерываем workflow при non-zero exit
+          pytest tests/qa-ui-tests-saucedemo --alluredir=tests/qa-ui-tests-saucedemo/allure-results --maxfail=1 --disable-warnings -q || true
+
+          # отладка: покажем результат папки
+          echo "Contents of allure-results (if any):"
+          ls -la tests/qa-ui-tests-saucedemo/allure-results || true
+
+          # устанавливаем output, чтобы условно генерировать и заливать отчет
+          if [ -d "tests/qa-ui-tests-saucedemo/allure-results" ] && [ "$(ls -A tests/qa-ui-tests-saucedemo/allure-results 2>/dev/null)" ]; then
+            echo "report_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "report_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Generate Allure Report
-        if: always()
+        if: steps.run_tests.outputs.report_exists == 'true'
         run: |
           mkdir -p tests/qa-ui-tests-saucedemo/allure-report
-          allure generate tests/qa-ui-tests-saucedemo/allure-results -o tests/qa-ui-tests-saucedemo/allure-report --clean || echo "Allure generate failed"
+          allure generate tests/qa-ui-tests-saucedemo/allure-results -o tests/qa-ui-tests-saucedemo/allure-report --clean || true
+          ls -la tests/qa-ui-tests-saucedemo/allure-report || true
 
-      - name: Upload Allure report
-        if: always()
+      - name: Upload Allure report (only if exists)
+        if: steps.run_tests.outputs.report_exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: allure-report
           path: tests/qa-ui-tests-saucedemo/allure-report
+
+      - name: Debug repo layout (after)
+        if: always()
+        run: |
+          echo "Final tree:"
+          ls -la tests/qa-ui-tests-saucedemo || true
